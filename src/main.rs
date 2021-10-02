@@ -1,21 +1,24 @@
 #![windows_subsystem = "windows"]
 
 use iced::{
-    text_input, Column, Element, Font, HorizontalAlignment, Length, Row, Sandbox, Settings, Text,
-    TextInput,
+    button, button::Button, checkbox::Checkbox, text_input, Column, Element, Font,
+    HorizontalAlignment, Length, Row, Sandbox, Settings, Text, TextInput,
 };
 use std::str::FromStr;
 
 const PADDING: u16 = 10;
 const SPACING: u16 = 30;
-const FONT_SIZE: u16 = 64;
+const FONT_SIZE: u16 = 48;
 const FONT: Font = Font::External {
     name: "Source Code Pro",
     bytes: include_bytes!("SourceCodePro-Regular.ttf"),
 };
 
 pub fn main() -> iced::Result {
-    MainGui::run(Settings::default())
+    let mut settings = Settings::default();
+    settings.window.size = (900, 600);
+    settings.window.min_size = Some((900, 600));
+    MainGui::run(settings)
 }
 
 #[derive(Clone, Default)]
@@ -25,10 +28,15 @@ struct MainGui {
     v0_input: Option<f64>,
     theta_input_state: text_input::State,
     theta_input_value: String,
-    theta_input: Option<f64>,
+    theta_input: Option<i64>,
+    theta_up_1_button: button::State,
+    theta_up_5_button: button::State,
+    theta_down_1_button: button::State,
+    theta_down_5_button: button::State,
     v_input_state: text_input::State,
     v_input_value: String,
     v_input: Option<f64>,
+    scientific: bool,
 }
 
 impl MainGui {}
@@ -38,14 +46,19 @@ enum Message {
     V0Input(String),
     ThetaInput(String),
     VInput(String),
+    ThetaChange(i64),
+    ScientificChange(bool),
 }
 
 impl Sandbox for MainGui {
     type Message = Message;
 
     fn new() -> Self {
-        let gui = Self::default();
-        gui
+        MainGui {
+            theta_input: Some(0),
+            theta_input_value: "0".to_owned(),
+            ..Default::default()
+        }
     }
 
     fn title(&self) -> String {
@@ -59,8 +72,8 @@ impl Sandbox for MainGui {
                 self.v0_input_value = s;
             }
             Message::ThetaInput(s) => {
-                self.theta_input = f64::from_str(&s).ok().and_then(|theta| {
-                    if (0.0..=90.0).contains(&theta) {
+                self.theta_input = i64::from_str(&s).ok().and_then(|theta| {
+                    if (0..=90).contains(&theta) {
                         Some(theta)
                     } else {
                         None
@@ -72,13 +85,24 @@ impl Sandbox for MainGui {
                 self.v_input = f64::from_str(&s).ok();
                 self.v_input_value = s;
             }
+            Message::ThetaChange(amount) => {
+                self.theta_input = self
+                    .theta_input
+                    .map(|theta| (theta + amount).max(0).min(90));
+                if let Some(theta) = self.theta_input {
+                    self.theta_input_value = theta.to_string();
+                }
+            }
+            Message::ScientificChange(b) => {
+                self.scientific = b;
+            }
         }
     }
 
     fn view(&mut self) -> Element<Message> {
         let title = Text::new("Hall Angle Tool")
             .width(Length::Fill)
-            .size(FONT_SIZE)
+            .size(FONT_SIZE * 3 / 2)
             .font(FONT)
             .color([0.5, 0.5, 0.5])
             .horizontal_alignment(HorizontalAlignment::Center);
@@ -103,19 +127,43 @@ impl Sandbox for MainGui {
         )
         .size(FONT_SIZE)
         .font(FONT);
+        let theta_up_1_button = Button::new(
+            &mut self.theta_up_1_button,
+            Text::new("+1").size(FONT_SIZE).font(FONT),
+        )
+        .on_press(Message::ThetaChange(1));
+        let theta_up_5_button = Button::new(
+            &mut self.theta_up_5_button,
+            Text::new("+5").size(FONT_SIZE).font(FONT),
+        )
+        .on_press(Message::ThetaChange(5));
+        let theta_down_1_button = Button::new(
+            &mut self.theta_down_1_button,
+            Text::new("-1").size(FONT_SIZE).font(FONT),
+        )
+        .on_press(Message::ThetaChange(-1));
+        let theta_down_5_button = Button::new(
+            &mut self.theta_down_5_button,
+            Text::new("-5").size(FONT_SIZE).font(FONT),
+        )
+        .on_press(Message::ThetaChange(-5));
         let theta_row = Row::new()
             .spacing(SPACING)
             .push(theta_label)
-            .push(theta_input);
+            .push(theta_input)
+            .push(theta_up_1_button)
+            .push(theta_up_5_button)
+            .push(theta_down_1_button)
+            .push(theta_down_5_button);
 
         let target_v = self
             .theta_input
             .zip(self.v0_input)
             .map(|(theta, v0)| {
-                if theta == 90.0 {
+                if theta == 90 {
                     0.0
                 } else {
-                    v0 * theta.to_radians().cos()
+                    v0 * (theta as f64).to_radians().cos()
                 }
             })
             .and_then(|target_v| {
@@ -127,11 +175,24 @@ impl Sandbox for MainGui {
             })
             .map_or_else(
                 || "Target V = ?".to_owned(),
-                |target_v| format!("Target V = {:0>15.12}", target_v),
+                |target_v| {
+                    if self.scientific {
+                        format!("Target V = {:.8e}", target_v)
+                    } else {
+                        format!("Target V = {:.16}", target_v)
+                    }
+                },
             );
         let target_v_label = Text::new(&target_v).size(FONT_SIZE).font(FONT);
 
-        // todo: exponent notation checkbox
+        let scientific_checkbox = Checkbox::new(
+            self.scientific,
+            "Scientific notation",
+            Message::ScientificChange,
+        )
+        .size(FONT_SIZE / 2)
+        .text_size(FONT_SIZE / 2)
+        .font(FONT);
 
         let v_label = Text::new("Actual V").size(FONT_SIZE).font(FONT);
         let v_input = TextInput::new(
@@ -162,6 +223,7 @@ impl Sandbox for MainGui {
             .push(v0_row)
             .push(theta_row)
             .push(target_v_label)
+            .push(scientific_checkbox)
             .push(v_row)
             .push(theta_label)
             .into()
