@@ -4,7 +4,9 @@ use iced::{
     button, button::Button, checkbox::Checkbox, text_input, Column, Element, Font,
     HorizontalAlignment, Length, Row, Sandbox, Settings, Text, TextInput,
 };
-use std::str::FromStr;
+use std::io::Write;
+use std::path::Path;
+use std::{fs::OpenOptions, str::FromStr};
 
 const PADDING: u16 = 10;
 const SPACING: u16 = 30;
@@ -16,8 +18,8 @@ const FONT: Font = Font::External {
 
 pub fn main() -> iced::Result {
     let mut settings = Settings::default();
-    settings.window.size = (900, 600);
-    settings.window.min_size = Some((900, 600));
+    settings.window.size = (960, 640);
+    settings.window.min_size = Some((960, 640));
     MainGui::run(settings)
 }
 
@@ -37,9 +39,10 @@ struct MainGui {
     v_input_value: String,
     v_input: Option<f64>,
     scientific: bool,
+    filename_input_state: text_input::State,
+    filename_input_value: String,
+    save_button: button::State,
 }
-
-impl MainGui {}
 
 #[derive(Debug, Clone)]
 enum Message {
@@ -48,6 +51,8 @@ enum Message {
     VInput(String),
     ThetaChange(i64),
     ScientificChange(bool),
+    FilenameInput(String),
+    Save,
 }
 
 impl Sandbox for MainGui {
@@ -57,6 +62,7 @@ impl Sandbox for MainGui {
         MainGui {
             theta_input: Some(0),
             theta_input_value: "0".to_owned(),
+            filename_input_value: "hall_angles_1".to_owned(),
             ..Default::default()
         }
     }
@@ -95,6 +101,34 @@ impl Sandbox for MainGui {
             }
             Message::ScientificChange(b) => {
                 self.scientific = b;
+            }
+            Message::FilenameInput(s) => {
+                self.filename_input_value = s;
+            }
+            Message::Save => {
+                if self.filename_input_value.is_empty() {
+                    return;
+                }
+
+                if let Some((v0, v)) = self.v0_input.zip(self.v_input) {
+                    let path = format!("{}.csv", self.filename_input_value);
+                    let add_header = !Path::new(&path).exists();
+
+                    let mut file = OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(&path)
+                        .expect("Appending to storage file failed");
+
+                    if add_header {
+                        writeln!(&mut file, "v0,v,theta").expect("Writing to storage file failed");
+                    }
+
+                    let theta = (v / v0).acos().to_degrees();
+
+                    writeln!(&mut file, "{},{},{}", v0, v, theta)
+                        .expect("Writing to storage file failed");
+                }
             }
         }
     }
@@ -216,6 +250,26 @@ impl Sandbox for MainGui {
             );
         let theta_label = Text::new(&theta).size(FONT_SIZE).font(FONT);
 
+        let filename_input = TextInput::new(
+            &mut self.filename_input_state,
+            "",
+            &self.filename_input_value,
+            Message::FilenameInput,
+        )
+        .size(FONT_SIZE)
+        .font(FONT);
+        let mut save_button = Button::new(
+            &mut self.save_button,
+            Text::new("Save angle").size(FONT_SIZE).font(FONT),
+        );
+        if self.v0_input.is_some() && self.v_input.is_some() {
+            save_button = save_button.on_press(Message::Save);
+        }
+        let save_row = Row::new()
+            .spacing(SPACING)
+            .push(filename_input)
+            .push(save_button);
+
         Column::new()
             .padding(PADDING)
             .spacing(SPACING)
@@ -226,6 +280,7 @@ impl Sandbox for MainGui {
             .push(scientific_checkbox)
             .push(v_row)
             .push(theta_label)
+            .push(save_row)
             .into()
     }
 }
