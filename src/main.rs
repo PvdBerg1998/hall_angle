@@ -42,6 +42,7 @@ struct MainGui {
     filename_input_state: text_input::State,
     filename_input_value: String,
     save_button: button::State,
+    restart_button: button::State,
 }
 
 #[derive(Debug, Clone)]
@@ -53,16 +54,29 @@ enum Message {
     ScientificChange(bool),
     FilenameInput(String),
     Save,
+    Restart,
 }
 
 impl Sandbox for MainGui {
     type Message = Message;
 
     fn new() -> Self {
+        let filename = {
+            let mut i = 1;
+            loop {
+                let filename = format!("hall_angles_{}", i);
+                let path = format!("{}.csv", filename);
+                if !Path::new(&path).exists() {
+                    break filename;
+                }
+                i += 1;
+            }
+        };
+
         MainGui {
             theta_input: Some(0),
             theta_input_value: "0".to_owned(),
-            filename_input_value: "hall_angles_1".to_owned(),
+            filename_input_value: filename,
             ..Default::default()
         }
     }
@@ -129,6 +143,9 @@ impl Sandbox for MainGui {
                     writeln!(&mut file, "{},{},{}", v0, v, theta)
                         .expect("Writing to storage file failed");
                 }
+            }
+            Message::Restart => {
+                *self = Self::new();
             }
         }
     }
@@ -265,10 +282,16 @@ impl Sandbox for MainGui {
         if self.v0_input.is_some() && self.v_input.is_some() {
             save_button = save_button.on_press(Message::Save);
         }
+        let restart_button = Button::new(
+            &mut self.restart_button,
+            Text::new("Restart").size(FONT_SIZE).font(FONT),
+        )
+        .on_press(Message::Restart);
         let save_row = Row::new()
             .spacing(SPACING)
             .push(filename_input)
-            .push(save_button);
+            .push(save_button)
+            .push(restart_button);
 
         Column::new()
             .padding(PADDING)
