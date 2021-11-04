@@ -93,7 +93,7 @@ impl Sandbox for MainGui {
             }
             Message::ThetaInput(s) => {
                 self.theta_input = i64::from_str(&s).ok().and_then(|theta| {
-                    if (0..=90).contains(&theta) {
+                    if (-90..=90).contains(&theta) {
                         Some(theta)
                     } else {
                         None
@@ -108,7 +108,7 @@ impl Sandbox for MainGui {
             Message::ThetaChange(amount) => {
                 self.theta_input = self
                     .theta_input
-                    .map(|theta| (theta + amount).max(0).min(90));
+                    .map(|theta| (theta + amount).max(-90).min(90));
                 if let Some(theta) = self.theta_input {
                     self.theta_input_value = theta.to_string();
                 }
@@ -211,7 +211,7 @@ impl Sandbox for MainGui {
             .theta_input
             .zip(self.v0_input)
             .map(|(theta, v0)| {
-                if theta == 90 {
+                if theta.abs() == 90 {
                     0.0
                 } else {
                     v0 * (theta as f64).to_radians().cos()
