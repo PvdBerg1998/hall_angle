@@ -145,7 +145,17 @@ impl Sandbox for MainGui {
                 }
             }
             Message::Restart => {
-                *self = Self::new();
+                // Retain some state
+                let v0_input_value = self.v0_input_value.clone();
+                let v0_input = self.v0_input;
+                let scientific = self.scientific;
+
+                *self = MainGui {
+                    v0_input_value,
+                    v0_input,
+                    scientific,
+                    ..Self::new()
+                };
             }
         }
     }
