@@ -138,7 +138,13 @@ impl Sandbox for MainGui {
                         writeln!(&mut file, "v0,v,theta").expect("Writing to storage file failed");
                     }
 
-                    let theta = (v / v0).acos().to_degrees();
+                    // Guess the sign because its not properly defined (cos is even)
+                    let sign = if self.theta_input.unwrap_or_default() >= 0 {
+                        1.0
+                    } else {
+                        -1.0
+                    };
+                    let theta = (v / v0).acos().to_degrees() * sign;
 
                     writeln!(&mut file, "{},{},{}", v0, v, theta)
                         .expect("Writing to storage file failed");
@@ -266,10 +272,16 @@ impl Sandbox for MainGui {
         .font(FONT);
         let v_row = Row::new().spacing(SPACING).push(v_label).push(v_input);
 
+        // Guess the sign because its not properly defined (cos is even)
+        let sign = if self.theta_input.unwrap_or_default() >= 0 {
+            1.0
+        } else {
+            -1.0
+        };
         let theta = self
             .v_input
             .zip(self.v0_input)
-            .map(|(v, v0)| (v / v0).acos().to_degrees())
+            .map(|(v, v0)| (v / v0).acos().to_degrees() * sign)
             .and_then(|theta| if theta.is_nan() { None } else { Some(theta) })
             .map_or_else(
                 || "Actual angle = ?".to_owned(),
